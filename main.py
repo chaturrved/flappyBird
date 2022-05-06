@@ -10,7 +10,8 @@ def create_pipe():
 def move_pipes(pipes):
     for pipe in pipes:
         pipe.centerx -= 5
-    return pipes
+    visible_pipes = [pipe for pipe in pipes if pipe.right > -50]
+    return visible_pipes
 def draw_pipes(pipes):
     for pipe in  pipes:
         if pipe.bottom >= 1024:
@@ -19,11 +20,16 @@ def draw_pipes(pipes):
             flip_pipe = pygame.transform.flip(pipe_surface, False, True)
             screen.blit(flip_pipe, pipe)
 def check_collision(pipes):
+    global can_score
     for pipe in pipes:
         if bird_rect.colliderect(pipe):
+            can_score = True
+            death_sound.play()
             return False
     
     if bird_rect.top <= -100 or bird_rect.bottom >= 900:
+        death_sound.play()
+        can_score = True
         return False
     return True        
 def rotate_bird(bird):
@@ -50,7 +56,19 @@ def update_score(score, high_score):
     if score > high_score:
         high_score = score;
     return high_score
+def pipe_score_check():
+    global score, can_score
+    
+    if pipe_list:
+        for pipe in pipe_list:
+            if 98 < pipe.centerx <  102 and can_score:
+                score += 1
+                score_sound.play()
+                can_score = False
+            if pipe.centerx < 0:
+                can_score = True
 
+#pygame.mixer.pre_init(frequency = 44100, size = 16, channels = 1, buffer = 256)
 pygame.init()
 screen = pygame.display.set_mode((576, 1024))
 clock = pygame.time.Clock()
@@ -62,6 +80,7 @@ bird_movement = 0
 game_active = True
 score = 0
 high_score = 0
+can_score = True
 
 bg_surface = pygame.image.load('assets/sprites/background-day.png').convert()
 bg_surface=pygame.transform.scale2x(bg_surface)
@@ -91,7 +110,13 @@ SPAWNPIPE = pygame.USEREVENT
 pygame.time.set_timer(SPAWNPIPE, 1200)
 pipe_height = [400, 600, 800]
 
+game_over_surface = pygame.transform.scale2x(pygame.image.load('assets/sprites/message.png').convert_alpha())
+game_over_rect = game_over_surface.get_rect(center = (288, 512))
 
+flap_sound = pygame.mixer.Sound('assets/audio/swoosh.wav')
+death_sound = pygame.mixer.Sound('assets/audio/hit.wav')
+score_sound = pygame.mixer.Sound('assets/audio/point.wav')
+score_sound_countdown = 100
 
 while True:
     for event in pygame.event.get():
@@ -104,6 +129,7 @@ while True:
             if event.key == pygame.K_SPACE and game_active:
                 bird_movement = 0
                 bird_movement -= 8
+                flap_sound.play()
             if event.key == pygame.K_SPACE and game_active == False:
                 game_active = True
                 pipe_list.clear()
@@ -127,7 +153,7 @@ while True:
     screen.blit(bg_surface,(0,0))
     
     if game_active:
-    #bird
+        #bird
         bird_movement+=gravity
         rotated_bird = rotate_bird(bird_surface)
         bird_rect.centery += bird_movement
@@ -137,9 +163,13 @@ while True:
         #pipes
         pipe_list = move_pipes(pipe_list)
         draw_pipes(pipe_list)
-        score += 0.01
+
+        #score
+        pipe_score_check()
         score_display('main_game')
+       
     else:
+        screen.blit(game_over_surface,game_over_rect)
         high_score = update_score(score, high_score)
         score_display('game_over')
 
